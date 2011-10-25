@@ -257,7 +257,7 @@ NvRmPrivClockLimitsInit(NvRmDeviceHandle hRmDevice)
             s_pClockScales[id] = pHwLimits[i].MaxKHzList;
         }
     }
-	
+	//Imperticus work
 	s_ClockRangeLimits[2].MaxKHz = 280000;
 	s_ClockRangeLimits[7].MaxKHz = 350000;
 	s_ClockRangeLimits[8].MaxKHz = 350000;
