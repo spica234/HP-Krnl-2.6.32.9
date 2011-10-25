@@ -35,7 +35,7 @@
 #include "nvcommon.h"
 #include "nvos.h"
 #include "nvrm_pmu.h"
-//#include "nvodm_pmu.h" //20100929, byoungwoo.yoon@lge.com, RTC setting for checking battery status during sleep
+#include "nvodm_pmu.h" //20100929, byoungwoo.yoon@lge.com, RTC setting for checking battery status during sleep
 #include "mach/nvrm_linux.h" // for s_hRmGlobal
 
 //20100609, jh.ahn@lge.com, Charger Code [START]
@@ -44,6 +44,7 @@
 #include <linux/delay.h>
 #include <linux/hrtimer.h>
 #include "nvodm_query_discovery.h"
+#include "star_battery_charger.h"
 //20100609, jh.ahn@lge.com, Charger Code [END]
 
 #define DEBUGFS_STAR_BATT_TEST_MODE
@@ -342,7 +343,7 @@ typedef struct tegra_battery_dev {
 	struct	workqueue_struct *battery_workqueue;
 	struct	delayed_work battery_status_poll_work;
 	struct	delayed_work battery_id_poll_work;
-	//struct	delayed_work battery_charge_done_work;
+	struct	delayed_work battery_charge_done_work;
 	struct	timer_list charger_state_read_timer;
 	struct	timer_list battery_gauge_timer;
 
@@ -351,10 +352,10 @@ typedef struct tegra_battery_dev {
 	NvS32	batt_temp;		/* temperature (degrees C) */
 	NvU32	batt_health;
 	NvU32	batt_chemtech;
-	//NvU32	batt_current;		/* current from ADC */
+	NvU32	batt_current;		/* current from ADC */
 	NvU32	charging_source;	/* 0: no cable, 1:usb, 2:AC */
 	NvU32	charging_enabled;	/* 0: Disable, 1: Enable */
-	//NvU32	full_bat;		/* max capacity of battery (mAh) */
+	NvU32	full_bat;		/* max capacity of battery (mAh) */
 	//20100706, jh.ahn@lge.com, For Full Battery process [START]
 	NvU32	cbc_request_time;
 	NvU8	charger_state_machine;
@@ -376,8 +377,8 @@ typedef struct tegra_battery_dev {
 	NvU32	vol_for_capacity;
 #endif // USE_ONETIME_VOLTAGE_CAPACITY
 	//20100824, jh.ahn@lge.com, get capacity using battery voltage for demo [END]
-	//NvU32	BatteryLifeTime;
-	//NvU32	BatteryMahConsumed;
+	NvU32	BatteryLifeTime;
+	NvU32	BatteryMahConsumed;
 	NvU32	ACLineStatus;
 	NvU32	battery_poll_interval;
 	NvBool	present;
@@ -1495,7 +1496,7 @@ static int star_battery_infomation_update(void)
 
 		if ((BatData.batteryVoltage != NVODM_BATTERY_DATA_UNKNOWN) && (BatData.batteryTemperature != NVODM_BATTERY_DATA_UNKNOWN))
 		{
-			//if (3250 > BatData.batteryVoltage) BatData.batteryVoltage = 3250;
+			if (3250 > BatData.batteryVoltage) BatData.batteryVoltage = 3250;
 			//if (4250 < BatData.batteryVoltage) BatData.batteryVoltage = 4250;
 			if ((3200 < BatData.batteryVoltage) && (BatData.batteryVoltage < 4400))
 			{
@@ -3091,7 +3092,7 @@ static int tegra_battery_probe(struct platform_device *pdev)
 	printk(KERN_INFO "%s: battery driver registered\n", pdev->name);
 
 	batt_dev->battery_poll_interval = NVBATTERY_POLLING_INTERVAL*HZ;
-	batt_dev->battery_workqueue = create_workqueue("battery_workqueue");
+	batt_dev->battery_workqueue = create_singlethread_workqueue("battery_workqueue");
 	if (batt_dev->battery_workqueue == NULL)
 	{
 		rc = -ENOMEM;
