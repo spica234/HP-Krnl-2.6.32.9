@@ -76,6 +76,7 @@
 #include <asm/irq_regs.h>
 
 #include "sched_cpupri.h"
+#include "sched_autogroup.h"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
@@ -272,6 +273,9 @@ struct task_group {
 	struct task_group *parent;
 	struct list_head siblings;
 	struct list_head children;
+#ifdef CONFIG_SCHED_AUTOGROUP
+	struct autogroup *autogroup;
+#endif
 };
 
 #ifdef CONFIG_USER_SCHED
@@ -358,7 +362,7 @@ static inline struct task_group *task_group(struct task_struct *p)
 #else
 	tg = &init_task_group;
 #endif
-	return tg;
+	return autogroup_task_group(p, tg);
 }
 
 /* Change a task's cfs_rq and parent entity if it moves across CPUs/groups */
@@ -870,6 +874,26 @@ static inline u64 global_rt_runtime(void)
 static inline int task_current(struct rq *rq, struct task_struct *p)
 {
 	return rq->curr == p;
+}
+
+/*
+ * Look for any tasks *anywhere* that are running nice 0 or better. We do
+ * this lockless for overhead reasons since the occasional wrong result
+ * is harmless.
+ */
+int above_background_load(void)
+{
+  struct task_struct *cpu_curr;
+  unsigned long cpu;
+
+  for_each_online_cpu(cpu) {
+    cpu_curr = cpu_rq(cpu)->curr;
+    if (unlikely(!cpu_curr))
+    continue;
+    if (PRIO_TO_NICE(cpu_curr->static_prio) < 1)
+    return 1;
+  }
+  return 0;
 }
 
 #ifndef __ARCH_WANT_UNLOCKED_CTXSW
@@ -1819,6 +1843,7 @@ static void update_sysctl(void);
 #include "sched_idletask.c"
 #include "sched_fair.c"
 #include "sched_rt.c"
+#include "sched_autogroup.c"
 #ifdef CONFIG_SCHED_DEBUG
 # include "sched_debug.c"
 #endif
@@ -9450,6 +9475,7 @@ void __init sched_init(void)
 #ifdef CONFIG_GROUP_SCHED
 	list_add(&init_task_group.list, &task_groups);
 	INIT_LIST_HEAD(&init_task_group.children);
+	autogroup_init(&init_task);
 
 #ifdef CONFIG_USER_SCHED
 	INIT_LIST_HEAD(&root_task_group.children);
@@ -9936,8 +9962,9 @@ static void free_sched_group(struct task_group *tg)
 {
 	free_fair_sched_group(tg);
 	free_rt_sched_group(tg);
+autogroup_free(tg);
 	kfree(tg);
-}
+	}
 
 /* allocate runqueue etc for a new task group */
 struct task_group *sched_create_group(struct task_group *parent)
@@ -10955,3 +10982,4 @@ void synchronize_sched_expedited(void)
 EXPORT_SYMBOL_GPL(synchronize_sched_expedited);
 
 #endif /* #else #ifndef CONFIG_SMP */
+
