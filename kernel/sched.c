@@ -82,7 +82,7 @@
 #include <trace/events/sched.h>
 
 /*
- * Convert user-nice values [ -20 ... 0 ... 19 ]
+ * Convert user-nice-Renice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
  * and back.
  */
