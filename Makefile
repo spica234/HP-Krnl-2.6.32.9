@@ -323,7 +323,7 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-MODFLAGS	= -DMODULE -O3 -march=armv7-a -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=vfpv3-d16 -mfloat-abi=soft -floop-block -floop-interchange floop-strip-mine -ffast-math -funsafe-looop-optimizations -funsafe-math-optimizations -fbranch-target-load-optimize2
+MODFLAGS	= -DMODULE -mcpu=cortex-a9 -mtune=cortex-a9 -mfpu=vfpv3-d16 -ftree-vectorize -mfloat-abi=hard -ffast-math -fsingle-precision-constant -mstructure-size-boundary=32 -marm -march=armv7-a --param l2-cache-size=2048
 CFLAGS_MODULE   = $(MODFLAGS)
 AFLAGS_MODULE   = $(MODFLAGS)
 LDFLAGS_MODULE  = -T $(srctree)/scripts/module-common.lds
