@@ -58,11 +58,11 @@ static struct fb_info tegra_fb_info = {
 		.yres		= 480,
 		.xres_virtual	= 800,
 		.yres_virtual	= 480,
-		.bits_per_pixel	= 32,
-		.red		= {16, 8, 0},
-		.green		= {8, 8, 0},
-		.blue		= {0, 8, 0},
-		.transp		= {24, 8, 0},
+		.bits_per_pixel	= 16,
+		.red		= {11, 5, 0},
+		.green		= {5, 6, 0},
+		.blue		= {0, 5, 0},
+		.transp		= {0, 0, 0},
 		.activate	= FB_ACTIVATE_NOW,
 		.height		= -1,
 		.width		= -1,
@@ -165,7 +165,9 @@ int tegra_fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 		if( regno >= 16 ) {
 			return -EINVAL;
 		}
-
+red >>= (16-var->red.length);
+blue >>= (16-var->blue.length);
+green >>= (16-var->green.length);
 		v = (red << var->red.offset) | (green << var->green.offset) |
 			(blue << var->blue.offset);
 
@@ -174,6 +176,8 @@ int tegra_fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 
 	return 0;
 }
+
+
 
 int tegra_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 {
