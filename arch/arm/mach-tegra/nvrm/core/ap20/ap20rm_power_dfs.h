@@ -43,6 +43,7 @@
 #define INCLUDED_AP20RM_POWER_DFS_H
 
 #include "nvrm_power_dfs.h"
+#include <linux/spica.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -190,8 +191,8 @@ extern "C"
  */
 
 // Defines minimum scaling limit for each supported SDRAM type
-#define NVRM_AP20_DDR2_MIN_KHZ (50000)
-#define NVRM_AP20_LPDDR2_MIN_KHZ (18000)
+//#define NVRM_AP20_DDR2_MIN_KHZ (50000)
+//#define NVRM_AP20_LPDDR2_MIN_KHZ (18000)
 
 #define NVRM_DFS_PARAM_EMC_AP20_DDR2 \
     NvRmFreqMaximum, /* Maximum domain frequency set to h/w limit */ \
@@ -241,12 +242,13 @@ extern "C"
  *   OFF_PENDING time in a row
  * If thresholds are set to 0, the values are derived at run time from the
  * characterization data
- */
-#define NVRM_CPU1_ON_MIN_KHZ (0)
-#define NVRM_CPU1_OFF_MAX_KHZ (0)
+*/
 
-#define NVRM_CPU1_ON_PENDING_MS (1500)
-#define NVRM_CPU1_OFF_PENDING_MS (1000)
+//#define NVRM_CPU1_ON_MIN_KHZ (MIN_CPU_ON * 1000)
+//#define NVRM_CPU1_OFF_MAX_KHZ (915000)
+
+#define NVRM_CPU1_ON_PENDING_MS (2500)
+//#define NVRM_CPU1_OFF_PENDING_MS (600)
 
 /**
  * Defines AP20 Thermal policy parameters.
@@ -280,14 +282,14 @@ extern "C"
 #define NVRM_DTT_POLL_MS_SLOW           (8000UL)
 
 /// Default low corners for core and dedicated CPU voltages
-#define NVRM_AP20_LOW_CORE_MV (950)
-//#define NVRM_AP20_LOW_CPU_MV (750)
-//20100903 taewan.kim@lge.com min voltage fix
-#define NVRM_AP20_LOW_CPU_MV (770)
-
-
+//#define NVRM_AP20_LOW_CORE_MV (900)
+//#if defined (CONFIG_MODEM_MDM)
+//#define NVRM_AP20_LOW_CPU_MV (770)
+//#elif defined (CONFIG_MODEM_IFX)
+//#define NVRM_AP20_LOW_CPU_MV (770)
+//#endif
 /// Core voltage in suspend
-#define NVRM_AP20_SUSPEND_CORE_MV (1000)
+//#define NVRM_AP20_SUSPEND_CORE_MV (850)
 
 /*****************************************************************************/
 
