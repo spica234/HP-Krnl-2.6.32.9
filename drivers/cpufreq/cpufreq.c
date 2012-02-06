@@ -28,13 +28,97 @@
 #include <linux/cpu.h>
 #include <linux/completion.h>
 #include <linux/mutex.h>
+#include <linux/earlysuspend.h>
 #include <linux/sched.h>
+#include <linux/spica.h>
+//#include "ap20rm_power_dfs.h"
+#define MAXSOC_PROCFS_NAME   "screenoff_maxcpufreq"
+#define MAXSOC_PROCFS_SIZE     7
+static struct proc_dir_entry *MAXSOC_Proc_File;
+static char procfs_buffer4[MAXSOC_PROCFS_SIZE];
+static unsigned long procfs_buffer_size = 0;
+
+int maxsoc_procfile_read(char *buffer, char **buffer_location, off_t offset, int buffer_length, int *eof, void *data) { 
+int ret;
+printk(KERN_INFO "procfile_read (/proc/spica/%s) called\n", MAXSOC_PROCFS_NAME);
+if (offset > 0) {
+ret  = 0;
+} else {
+memcpy(buffer, procfs_buffer4, procfs_buffer_size);
+ret = procfs_buffer_size;
+
+}
+return ret;
+}
+
+int maxsoc_procfile_write(struct file *file, const char *buffer, unsigned long count, void *data) {
+int temp6;
+temp6=0;
+if ( sscanf(buffer,"%d",&temp6) < 1 ) return procfs_buffer_size;
+if ( temp6 < 216 || temp6 > 999000 ) return procfs_buffer_size;
+//if ( temp6 != 16 || temp6 != 32 || temp6 != 64 || temp6 != 96 || 128 ) return procfs_buffer_size;
+
+procfs_buffer_size = count;
+	if (procfs_buffer_size > MAXSOC_PROCFS_SIZE ) {
+		procfs_buffer_size = MAXSOC_PROCFS_SIZE;
+	}
+if ( copy_from_user(procfs_buffer4, buffer, procfs_buffer_size) ) {
+printk(KERN_INFO "buffer_size error\n");
+return -EFAULT;
+}
+sscanf(procfs_buffer4,"%u",&MAXSCREENOFFCPUFREQ);
+//if ( SDRAMFREQ < 216000 || SDRAMFREQ > 1100000 ) {
+return procfs_buffer_size;
+}
+
+
+static int __init init_maxsoc_procsfs(void)
+{
+//int rv = 0;
+MAXSOC_Proc_File = spica_add(MAXSOC_PROCFS_NAME);
+//spica_dir = proc_mkdir("spica", NULL); 
+
+//MAXSOC_Proc_File = create_proc_entry(MAXSOC_PROCFS_NAME, 0755, spica_dir);
+if (MAXSOC_Proc_File == NULL) {
+spica_remove(MAXSOC_PROCFS_NAME);
+printk(KERN_ALERT "Error: Could not initialize /proc/spica/%s\n", MAXSOC_PROCFS_NAME);
+return -ENOMEM;
+} else {
+MAXSOC_Proc_File->read_proc  = maxsoc_procfile_read;
+MAXSOC_Proc_File->write_proc = maxsoc_procfile_write;
+//MAXSOC_Proc_File->owner     = THIS_MODULE;
+MAXSOC_Proc_File->mode     = S_IFREG | S_IRUGO;
+MAXSOC_Proc_File->uid     = 0;
+MAXSOC_Proc_File->gid     = 0;
+MAXSOC_Proc_File->size     = 37;
+sprintf(procfs_buffer4,"%d",MAXSCREENOFFCPUFREQ);
+procfs_buffer_size=strlen(procfs_buffer4);
+printk(KERN_INFO "/proc/spica/%s created\n", MAXSOC_PROCFS_NAME);
+//return 0;
+}
+return 0;
+}
+module_init(init_maxsoc_procsfs);
+
+static void __exit cleanup_maxsoc_procsfs(void) {
+//printk(KERN_INFO "/proc/spica/%s removed\n", MAXSOC_PROCFS_NAME);
+spica_remove(MAXSOC_PROCFS_NAME);
+printk(KERN_INFO "/proc/spica/%s removed\n", MAXSOC_PROCFS_NAME);
+}
+module_exit(cleanup_maxsoc_procsfs);
 
 #define dprintk(msg...) cpufreq_debug_printk(CPUFREQ_DEBUG_CORE, \
 						"cpufreq-core", msg)
+//unsigned long int USE_FG;
 
+
+//extern int OC();
+//extern int OC();
 #define USE_FAKE_SHMOO
+
+
 #ifdef USE_FAKE_SHMOO
+
 #include "../nvrm/core/common/nvrm_clocks_limits_private.h"
 #include "../nvrm/core/common/nvrm_power_dfs.h"
 #include <nvrm_diag.h>
@@ -47,6 +131,7 @@
 int *FakeShmoo_UV_mV_Ptr; // Stored voltage table from cpufreq sysfs
 extern NvRmCpuShmoo fake_CpuShmoo;  // Stored faked CpuShmoo values
 extern NvRmDfs *fakeShmoo_Dfs;
+
 #endif // USE_FAKE_SHMOO
 
 /**
@@ -83,6 +168,7 @@ static DEFINE_SPINLOCK(cpufreq_driver_lock);
  */
 static DEFINE_PER_CPU(int, policy_cpu);
 static DEFINE_PER_CPU(struct rw_semaphore, cpu_policy_rwsem);
+
 
 #define lock_policy_rwsem(mode, cpu)					\
 int lock_policy_rwsem_##mode						\
@@ -747,6 +833,7 @@ define_one_ro(frequency_voltage_table);
 define_one_rw(UV_mV_table);
 #endif // USE_FAKE_SHMOO
 
+
 static struct attribute *default_attrs[] = {
 	&cpuinfo_min_freq.attr,
 	&cpuinfo_max_freq.attr,
@@ -764,6 +851,7 @@ static struct attribute *default_attrs[] = {
 	&frequency_voltage_table.attr,
 	&UV_mV_table.attr,
 #endif // USE_FAKE_SHMOO
+
 	NULL
 };
 
@@ -1036,6 +1124,7 @@ static int cpufreq_add_dev(struct sys_device *sys_dev)
 	unsigned int j;
 #ifdef CONFIG_HOTPLUG_CPU
 	int sibling;
+//struct cpufreq_policy *cp=NULL;
 #endif
 
 	if (cpu_is_offline(cpu))
@@ -1087,8 +1176,8 @@ static int cpufreq_add_dev(struct sys_device *sys_dev)
 struct cpufreq_policy *cp;
 	for_each_online_cpu(sibling) {
 		cp = per_cpu(cpufreq_cpu_data, sibling);
-		if (cp && cp->governor &&
-		    (cpumask_test_cpu(cpu, cp->related_cpus))) {
+if (cp && cp->governor &&
+(cpumask_test_cpu(cpu, cp->related_cpus))) {
 dprintk("found sibling CPU, copying policy\n");
 			policy->governor = cp->governor;
 policy->min = cp->min;
@@ -1186,6 +1275,8 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 	unsigned int cpu = sys_dev->id;
 	unsigned long flags;
 	struct cpufreq_policy *data;
+struct kobject *kobj;
+struct completion *cmp;
 #ifdef CONFIG_SMP
 	struct sys_device *cpu_sys_dev;
 	unsigned int j;
@@ -1214,10 +1305,11 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 		dprintk("removing link\n");
 		cpumask_clear_cpu(cpu, data->cpus);
 		spin_unlock_irqrestore(&cpufreq_driver_lock, flags);
-		sysfs_remove_link(&sys_dev->kobj, "cpufreq");
+		kobj = &sys_dev->kobj;
 		cpufreq_cpu_put(data);
 		cpufreq_debug_enable_ratelimit();
 		unlock_policy_rwsem_write(cpu);
+sysfs_remove_link(kobj, "cpufreq");
 		return 0;
 	}
 #endif
@@ -1256,7 +1348,10 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 					data->governor->name, CPUFREQ_NAME_LEN);
 #endif
 			cpu_sys_dev = get_cpu_sysdev(j);
-			sysfs_remove_link(&cpu_sys_dev->kobj, "cpufreq");
+kobj = &cpu_sys_dev->kobj;
+unlock_policy_rwsem_write(cpu);
+sysfs_remove_link(kobj, "cpufreq");
+lock_policy_rwsem_write(cpu);
 			cpufreq_cpu_put(data);
 		}
 	}
@@ -1267,17 +1362,21 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 	if (cpufreq_driver->target)
 		__cpufreq_governor(data, CPUFREQ_GOV_STOP);
 
-	kobject_put(&data->kobj);
+kobj = &data->kobj;
+cmp = &data->kobj_unregister;
+unlock_policy_rwsem_write(cpu);
+kobject_put(kobj);
 
 	/* we need to make sure that the underlying kobj is actually
 	 * not referenced anymore by anybody before we proceed with
 	 * unloading.
 	 */
 	dprintk("waiting for dropping of refcount\n");
-	wait_for_completion(&data->kobj_unregister);
+wait_for_completion(cmp);
 	dprintk("wait complete\n");
 
-	if (cpufreq_driver->exit)
+lock_policy_rwsem_write(cpu);	
+if (cpufreq_driver->exit)
 		cpufreq_driver->exit(data);
 
 	unlock_policy_rwsem_write(cpu);
@@ -1678,8 +1777,8 @@ static int __cpufreq_governor(struct cpufreq_policy *policy,
 	   restrictions, like e.g. conservative or ondemand.
 	   That this is the case is already ensured in Kconfig
 	*/
-#ifdef CONFIG_CPU_FREQ_GOV_PERFORMANCE
-	struct cpufreq_governor *gov = &cpufreq_gov_performance;
+#ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
+	struct cpufreq_governor *gov = &cpufreq_gov_interactive;
 #else
 	struct cpufreq_governor *gov = NULL;
 #endif
@@ -2078,6 +2177,181 @@ int cpufreq_unregister_driver(struct cpufreq_driver *driver)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(cpufreq_unregister_driver);
+int oldmaxclock;
+int oldmincpu1on;
+int oldgpufreq;
+int oldgpufbfreq;
+int oldcoremv;
+int oldddr2;
+int oldlpddr2;
+
+static void powersave_early_suspend(struct early_suspend *handler)
+{
+	int cpu;
+
+	for_each_online_cpu(cpu) {
+		struct cpufreq_policy *cpu_policy, new_policy;
+
+		cpu_policy = cpufreq_cpu_get(cpu);
+		if (!cpu_policy)
+			continue;
+		if (cpufreq_get_policy(&new_policy, cpu))
+			goto out;
+oldmaxclock = cpu_policy->user_policy.max;
+oldmincpu1on = NVRM_CPU1_ON_MIN_KHZ;
+oldgpufreq = GPUFREQ;
+oldgpufbfreq = GPUFBFREQ;
+oldcoremv = NVRM_AP20_SUSPEND_CORE_MV;
+oldddr2 = NVRM_AP20_DDR2_MIN_KHZ;
+oldlpddr2 = NVRM_AP20_LPDDR2_MIN_KHZ;
+
+if (OCUVONOFF == 4)
+{
+NITROONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 810000;
+GPUFREQ = 320000;
+GPUFBFREQ = 630000;
+NVRM_AP20_SUSPEND_CORE_MV = 850;
+NVRM_AP20_DDR2_MIN_KHZ = 40000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 15000;
+NVRM_AP20_LOW_CORE_MV = 900;
+NVRM_AP20_LOW_CPU_MV = 750;
+NVRM_CPU1_OFF_PENDING_MS = 500;
+}
+else if (OCUVONOFF == 5)
+{
+NITROONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 810000;
+GPUFREQ = 320000;
+GPUFBFREQ = 600000;
+NVRM_AP20_SUSPEND_CORE_MV = 770;
+NVRM_AP20_DDR2_MIN_KHZ = 30000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 12000;
+NVRM_AP20_LOW_CORE_MV = 850;
+NVRM_AP20_LOW_CPU_MV = 735;
+NVRM_CPU1_OFF_PENDING_MS = 400;
+} else if (OCUVONOFF == 6)
+{
+NITROONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 1099000;
+GPUFREQ = 280000;
+GPUFBFREQ = 550000;
+NVRM_AP20_SUSPEND_CORE_MV = 650;
+NVRM_AP20_DDR2_MIN_KHZ = 10000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 8000;
+NVRM_AP20_LOW_CORE_MV = 800;
+NVRM_AP20_LOW_CPU_MV = 720;
+NVRM_CPU1_OFF_PENDING_MS = 200;
+} else {
+NVRM_AP20_LOW_CORE_MV = 900;
+NVRM_AP20_LOW_CPU_MV = 770;
+NVRM_CPU1_OFF_PENDING_MS = 200;
+}
+
+
+		new_policy.max = MAXSCREENOFFCPUFREQ;
+		new_policy.min = cpu_policy->cpuinfo.min_freq;
+
+
+		printk(KERN_INFO
+			"%s: set cpu%d freq in the %u-%u KHz range\n",
+			__func__, cpu, new_policy.min, new_policy.max);
+		__cpufreq_set_policy(cpu_policy, &new_policy);
+		cpu_policy->user_policy.policy = cpu_policy->policy;
+		cpu_policy->user_policy.governor = cpu_policy->governor;
+
+out:
+		cpufreq_cpu_put(cpu_policy);
+	}
+}
+
+static void powersave_late_resume(struct early_suspend *handler)
+{
+	int cpu;
+
+	for_each_online_cpu(cpu) {
+		struct cpufreq_policy *cpu_policy, new_policy;
+
+		cpu_policy = cpufreq_cpu_get(cpu);
+		if (!cpu_policy)
+			continue;
+		if (cpufreq_get_policy(&new_policy, cpu))
+			goto out;
+		new_policy.max = oldmaxclock;
+		new_policy.min = cpu_policy->user_policy.min;
+//extern int USE_FG;
+if (OCUVONOFF == 1)
+{
+NITROONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 810000;
+GPUFREQ = 320000;
+GPUFBFREQ = 630000;
+NVRM_AP20_SUSPEND_CORE_MV = 850;
+NVRM_AP20_DDR2_MIN_KHZ = 40000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 15000;
+NVRM_AP20_LOW_CORE_MV = 900;
+NVRM_AP20_LOW_CPU_MV = 750;
+NVRM_CPU1_OFF_PENDING_MS = 500;
+}
+else if (OCUVONOFF == 2)
+{
+NITROONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 810000;
+GPUFREQ = 320000;
+GPUFBFREQ = 600000;
+NVRM_AP20_SUSPEND_CORE_MV = 770;
+NVRM_AP20_DDR2_MIN_KHZ = 30000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 12000;
+NVRM_AP20_LOW_CORE_MV = 850;
+NVRM_AP20_LOW_CPU_MV = 735;
+NVRM_CPU1_OFF_PENDING_MS = 500;
+} else if (OCUVONOFF == 3)
+{
+NITROONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 1099000;
+GPUFREQ = 280000;
+GPUFBFREQ = 550000;
+NVRM_AP20_SUSPEND_CORE_MV = 650;
+NVRM_AP20_DDR2_MIN_KHZ = 10000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 8000;
+NVRM_AP20_LOW_CORE_MV = 800;
+NVRM_AP20_LOW_CPU_MV = 720;
+NVRM_CPU1_OFF_PENDING_MS = 200;
+} else if (NITROONOFF == 1)
+{
+OCUVONOFF = 0;
+NVRM_CPU1_ON_MIN_KHZ = 810000;
+GPUFREQ = 350000;
+GPUFBFREQ = 700000;
+NVRM_AP20_SUSPEND_CORE_MV = 1000;
+NVRM_AP20_DDR2_MIN_KHZ = 55000;
+NVRM_AP20_LPDDR2_MIN_KHZ = 20000;
+NVRM_AP20_LOW_CORE_MV = 950;
+NVRM_AP20_LOW_CPU_MV = 770;
+NVRM_CPU1_OFF_PENDING_MS = 900;
+} else {
+else {
+NVRM_AP20_LOW_CORE_MV = 950;
+NVRM_AP20_LOW_CPU_MV = 770;
+NVRM_CPU1_OFF_PENDING_MS = 600;
+}
+printk(KERN_INFO
+			"%s: set cpu%d freq in the %u-%u KHz range\n",
+			__func__, cpu, new_policy.min, new_policy.max);
+		__cpufreq_set_policy(cpu_policy, &new_policy);
+		cpu_policy->user_policy.policy = cpu_policy->policy;
+		cpu_policy->user_policy.governor = cpu_policy->governor;
+out:
+		cpufreq_cpu_put(cpu_policy);
+	}
+}
+
+static struct early_suspend _powersave_early_suspend = {
+	.suspend = powersave_early_suspend,
+	.resume = powersave_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
+};
+
 
 static int __init cpufreq_core_init(void)
 {
@@ -2096,7 +2370,7 @@ static int __init cpufreq_core_init(void)
 	cpufreq_global_kobject = kobject_create_and_add("cpufreq",
 						&cpu_sysdev_class.kset.kobj);
 	BUG_ON(!cpufreq_global_kobject);
-
+register_early_suspend(&_powersave_early_suspend);
 	return 0;
 }
 core_initcall(cpufreq_core_init);
