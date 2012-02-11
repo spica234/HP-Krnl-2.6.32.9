@@ -822,7 +822,3 @@ int s_Cpu1OffMaxKHz = 0;
     return PmRequest;
 }
 
-MODULE_AUTHOR("Ben Dooks, <ben@simtec.co.uk>");
-MODULE_DESCRIPTION("Samsung S3C24XX PCM DMA module");
-MODULE_LICENSE("GPL");
-/*****************************************************************************/
